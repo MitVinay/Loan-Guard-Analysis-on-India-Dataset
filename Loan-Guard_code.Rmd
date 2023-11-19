@@ -1,0 +1,356 @@
+---
+title: "Mittal_33613877_Assignment3"
+output: html_document
+date: "2023-10-17"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r eval = FALSE}
+# Importing Libraries
+library(tidyverse)
+library(naniar)
+library(visdat)
+library(ggplot2)
+library(corrplot)
+library(randomForest)
+library(pROC)
+library(fmsb)
+library(scales)
+library(rpart)
+library(dplyr)
+library(caret)
+library(class)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r eval = FALSE}
+# Reading Csv file
+data_df <- read_csv("Training Data.csv")
+```
+
+```{r eval = FALSE}
+# Data Checking
+# removing ID column from training data
+names(data_df)
+data_df1 <- data_df %>% select(-Id)
+
+# Missing variables summary table
+miss_var_summary(data_df1)
+str(data_df1)
+```
+```{r eval = FALSE}
+# Visualisation 
+data_df1 %>%
+  vis_dat(warn_large_data = FALSE) +
+  ggplot2::theme(legend.position = "bottom")
+```
+
+```{r eval = FALSE}
+# Dividing into categorical and numerical data
+numeric_columns <- sapply(data_df1, is.numeric)
+categorical_columns <- sapply(data_df1, function(x) !is.numeric(x))
+```
+
+```{r eval = FALSE}
+# Number checking 
+any_negative <- any(data_df1[, numeric_columns] < 0)
+
+
+# Any numerical column has negative Value
+percentage_negative <- sum(any_negative) / length(numeric_columns) * 100
+
+# Create a pie chart with the percentage label and a legend
+pie(c(percentage_negative, 100 - percentage_negative),
+    labels = c(paste("Negative Values: ", round(percentage_negative, 2), "%"),
+               paste("Psoitive Values", 100 - round(percentage_negative, 2), "%")),
+    col = c("lightcoral", "skyblue"),
+    main = "Percentage of Columns with Negative Values",
+    border = "white"
+)
+
+# Add a legend
+legend("topright", c("Negative Values", "Non-Negative Values"), fill = c("lightcoral", "skyblue"), bty = "n")
+
+```
+
+```{r eval = FALSE}
+# Checking the distinct values
+for ( name in names(data_df1[, categorical_columns])){
+  print(name)
+  distinct_values_column <- unique(data_df1[, name])
+  print(distinct_values_column, n = 400)
+}
+
+# Removing [] content 
+data_df1$CITY <- gsub("\\[.*?\\]", "", data_df1$CITY)
+data_df1$STATE <- gsub("\\[.*?\\]", "", data_df1$STATE)
+
+```
+```{r eval = FALSE}
+# Individual data checking
+# Generate a color palette based on the number of numeric columns
+colors <- c("#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a")
+
+long_data <- tidyr::gather(data_df1[, numeric_columns],
+                           key = "Variable", value = "Value") %>%
+  filter(Variable != "Risk_Flag")
+
+
+# Individual data checking
+ggplot(long_data, aes(x = Variable, y = Value, fill = Variable)) +
+  geom_boxplot(color = "black", size = 0.7, outlier.shape = 16, outlier.size = 2) +
+  scale_fill_manual(values = colors) +
+  labs(
+    title = "Box Plots",
+    x = "Variable",
+    y = "Value",
+    fill = "Variable"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, hjust = 0.5, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_text(size = 12),
+    legend.position = "right"
+  ) +
+  facet_wrap(~Variable, scales = "free_y", ncol = 1) +
+  scale_y_continuous(labels = scales::comma)
+
+```
+
+```{r eval = FALSE}
+# Numerical columns Correlation matrix
+correlation_matrix <- cor(data_df1[, numeric_columns])
+label_color <- "black"
+transposed_matrix <- t(correlation_matrix)
+
+
+
+
+# Reset font style Correlation Matrix
+par(font = 2)
+corrplot(
+  correlation_matrix,
+  method = "color",
+  type = "lower",
+  tl.col = "black",
+  addCoef.col = "white",
+  col = colorRampPalette(c("#FEF8E0", "#BC6C25", "lightblue"))(100),
+  order = "hclust",  # Order variables by hierarchical clustering
+  addgrid.col = "gray",  # Add gray grid lines
+  tl.srt = 45,  # Text label rotation angle
+  tl.cex = 0.8  # Text label size
+)
+# Reset font style
+par(font = 1)
+
+```
+```{r eval = FALSE}
+# Analysis 
+
+Married <- data_df1 %>% select("Married/Single", "Risk_Flag") %>%
+  group_by(`Married/Single`, Risk_Flag) %>% summarise(total = n(), .groups = 'drop') %>%
+  ungroup()
+
+# Married
+ggplot(Married, aes(x = `Married/Single`, y = total, fill = factor(Risk_Flag))) +
+  geom_bar(stat = "identity", position = "dodge", color = "black", alpha = 0.8) +
+  labs(title = "Bar Plot of Married/Single and Risk_Flag",
+       x = "Married/Single",
+       y = "Total Count",
+       fill = "Risk_Flag") +
+  scale_fill_manual(values = c("0" = "#FAC5A6", "1" = "#4f5B67")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(face = "bold"),  # Bold y-axis labels
+        axis.title.x = element_text(face = "bold"),  # Bold x-axis label
+        axis.title.y = element_text(face = "bold")) +  # Bold y-axis label
+  geom_text(aes(label = total), position = position_dodge(width = 0.9), vjust = -0.5) 
+```
+```{r eval = FALSE}
+# House ownership
+
+House <- data_df1 %>% select("House_Ownership", "Risk_Flag") %>%
+  group_by(House_Ownership, Risk_Flag) %>% summarise(total = n(), .groups = 'drop') %>%
+  ungroup()
+
+ggplot(House, aes(x = `House_Ownership`, y = total, fill = factor(Risk_Flag))) +
+  geom_bar(stat = "identity", position = "dodge", color = "black", alpha = 0.8) +
+  labs(title = "Bar Plot of Houser Ownership and Risk_Flag",
+       x = "House Ownership",
+       y = "Total Count",
+       fill = "Risk_Flag") +
+  scale_fill_manual(values = c("0" = "#2A363B", "1" = "#E84E5F")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(face = "bold"),  # Bold y-axis labels
+        axis.title.x = element_text(face = "bold"),  # Bold x-axis label
+        axis.title.y = element_text(face = "bold")) +  # Bold y-axis label
+  geom_text(aes(label = total), position = position_dodge(width = 0.9), vjust = -0.5)
+```
+```{r eval = FALSE}
+# Car Ownership
+car <- data_df1 %>% select("Car_Ownership", "Risk_Flag") %>%
+  group_by(Car_Ownership, Risk_Flag) %>% summarise(total = n(), .groups = 'drop') %>%
+  ungroup()
+
+ggplot(car, aes(x = Car_Ownership, y = total, fill = factor(Risk_Flag))) +
+  geom_bar(stat = "identity", position = "dodge", color = "black", alpha = 0.8) +
+  labs(title = "Bar Plot of car Ownership and Risk_Flag",
+       x = "car Ownership",
+       y = "Total Count",
+       fill = "Risk_Flag") +
+  scale_fill_manual(values = c("0" = "green", "1" = "red")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(face = "bold"),  # Bold y-axis labels
+        axis.title.x = element_text(face = "bold"),  # Bold x-axis label
+        axis.title.y = element_text(face = "bold")) +  # Bold y-axis label
+  geom_text(aes(label = total), position = position_dodge(width = 0.9), vjust = -0.5)
+```
+```{r eval = FALSE}
+# Customize the radar chart
+op <- par(mar = c(1, 1, 1, 1))
+par(mfrow = c(1, 1))
+
+create_beautiful_radarchart <- function(data, color = "pink", 
+                                        vlabels = colnames(data), vlcex = 0.7,
+                                        caxislabels = NULL, title = NULL, ...){
+  radarchart(
+    data, axistype = 1,
+    # Customize the polygon
+    pcol = color, pfcol = scales::alpha(color, 0.5), plwd = 2, plty = 1,
+    # Customize the grid
+    cglcol = "grey", cglty = 1, cglwd = 0.8,
+    # Customize the axis
+    axislabcol = "grey", 
+    # Variable labels
+    vlcex = vlcex, vlabels = vlabels,
+    caxislabels = caxislabels, title = title, ...
+  )
+}
+
+# Create the radar chart with custom settings
+create_beautiful_radarchart(
+  data = salary_proffession1,
+  caxislabels = seq(100000, 900000, length.out =5),  # Customize axis labels
+  # color = "#FF5733",                # Change the color
+  title = "Radar Chart Example"     # Add a title
+)
+
+par(op)  # Reset graphical parameters
+
+```
+```{r eval = FALSE}
+
+
+#### Stacked bar plot for 10
+p <- as.vector(rbind(head(salary_proffession$Profession,5),tail(salary_proffession$Profession,5)))
+profession_st <- data_df1 %>% filter(Profession %in% p) %>% select(Profession, Risk_Flag)
+  
+
+
+ggplot(data = profession_st, aes(x = Profession, fill = as.factor(Risk_Flag)))+
+  geom_bar(position = "stack", color = "black", show.legend = TRUE)+
+  theme_minimal()+
+  scale_fill_manual(values = c("khaki", "lightgrey"))+
+  labs(fill = "Risk_Flag", title = "Profession Distribution on the basis of Risk Flag")
+```
+```{r eval = FALSE}
+
+
+# Random Forest
+data_df1$`Married/Single` <- as.factor(data_df1$`Married/Single`)
+data_df1$House_Ownership <- as.factor(data_df1$House_Ownership)
+data_df1$Car_Ownership <- as.factor(data_df1$Car_Ownership)
+data_df1$Profession <- as.factor(data_df1$Profession)
+data_df1$CITY <- as.factor(data_df1$CITY)
+data_df1$STATE <- as.factor(data_df1$STATE)
+str(data_df1)
+
+
+set.seed(123)
+train_indices <- sample(1:nrow(data_df1), 0.8 * nrow(data_df1))
+train_data <- data_df1[train_indices, ] %>% select(-"CITY")
+test_data <- data_df1[-train_indices, ] %>% select(-"CITY")
+train_labels <- data_df1$Risk_Flag[train_indices]
+test_labels <- data_df1$Risk_Flag[-train_indices]
+str(train_data)
+```
+```{r eval = FALSE}
+acc <- numeric(10)
+# Train the random forest model
+for ( x in 1:10){
+
+rf_model <- randomForest(
+  x = train_data[, -which(names(train_data) == 'Risk_Flag')],
+  y = as.factor(train_labels),
+  na.action = na.pass,
+  mtry = x  # Adjust mtry based on your data
+)
+
+# Make predictions on the test set
+predictions <- predict(rf_model, test_data)
+
+# Evaluate the model
+#confusion_matrix <- table(predictions, test_labels)
+#print(confusion_matrix)
+
+# Calculate accuracy
+accuracy <- sum(predictions == test_labels) / length(test_labels)
+acc[x] <- accuracy 
+# Print accuracy
+cat("Accuracy:", accuracy, "\n")
+}
+
+data <- data.frame(x = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10), y = acc)
+
+# Create a ggplot object for
+ggplot(data, aes(x, y)) +
+  geom_point(color = "red", size = 3) +  # Scatter plot points
+  geom_line(color = "black") +              
+  labs(title = "Accuracy Vs Number of Trees", x = "Number of Trees", y = "Accuracy") +
+  annotate("text", x = which.max(data$y), y = max(data$y), 
+           label = paste("Max Accuracy:",round(max(data$y), digits = 4)),
+           vjust = -1.5, hjust = 0.5, fontface = "bold") +
+  scale_x_continuous(breaks = 1:10, limits = c(1, 10)) +
+  theme(plot.title = element_text(color="black", size=14, face="bold"),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"))
+```
+```{r eval = FALSE}
+# Random Forest 2
+rf_model <- randomForest(
+  x = train_data[, -which(names(train_data) == 'Risk_Flag')],
+  y = as.factor(train_labels),
+  na.action = na.pass,
+  mtry = 2  # Adjust mtry based on your data
+)
+predictions <- predict(rf_model, test_data)
+
+
+# Create a ROC curve
+roc_curve <- roc(test_labels, predictions)
+
+# Plot the ROC curve
+plot(roc_curve, main = "ROC Curve for Random Forest", col = "brown")
+
+text(0.8, 0.2, paste("AUC =", round(auc_value, 3)), col = "brown", cex = 1.2)
+
+# Add legend
+legend("bottomright", legend = paste("AUC =", round(auc_value, 3)), col = "brown", lty = 1, cex = 0.8)
+
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
